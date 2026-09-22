@@ -481,53 +481,38 @@ export default function Home() {
     if (paymentSubmitting) return;
     setPaymentSubmitting(true);
     try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return notify("Your client session expired. Please log in again.");
-    const { data: ownedBookings, error: bookingError } = await supabase
-      .from("bookings")
-      .select("id")
-      .eq("client_id", user.id)
-      .order("created_at", { ascending: false });
-    if (bookingError) return notify(bookingError.message);
-    const bookingId = ownedBookings?.find((booking) => booking.id === client?.id)?.id || ownedBookings?.[0]?.id;
-    if (!bookingId) return notify("No booking is linked to this client account.");
-    const activeBooking = bookings.find((booking) => booking.id === bookingId) || client;
-    if (!activeBooking) return notify("Your booking is still loading. Please try again.");
-    const data = Object.fromEntries(
-      new FormData(event.currentTarget).entries(),
-    ) as Record<string, string>;
-    const receipt = (
-      event.currentTarget.elements.namedItem("receipt") as HTMLInputElement
-    )?.files?.[0];
-    let receiptPath: string | null = null;
-    if (receipt) {
-      receiptPath = `${bookingId}/${Date.now()}-${receipt.name}`;
-      const upload = await supabase.storage
-        .from("payment-receipts")
-        .upload(receiptPath, receipt, { upsert: false });
-      if (upload.error) return notify("The payment receipt could not be uploaded.");
-    }
-    const { error } = await supabase
-      .from("payments")
-      .insert({
-        booking_id: bookingId,
-        amount: Number(data.amount),
-        method: data.method,
-        sender_name: data.senderName,
-        reference: data.reference,
-        status: "Submitted",
-        receipt_path: receiptPath,
-      });
-    if (error)
-      return notify(
-        error.code === "42501"
-          ? "Payment rejected by security policy. Log in with the client account that created this booking."
-          : error.message,
-      );
-    void queryClient.invalidateQueries({ queryKey: ["bookings"] });
-    notify("Payment submitted for admin confirmation.");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return notify("Your client session expired. Please log in again.");
+      const data = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
+      const amount = Number(data.amount);
+      if (!Number.isFinite(amount) || amount <= 0) return notify("Enter a valid payment amount.");
+      const { data: ownedBookings, error: bookingError } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("client_id", user.id)
+        .order("created_at", { ascending: false });
+      if (bookingError) return notify(`Could not find your booking: ${bookingError.message}`);
+      const bookingId = ownedBookings?.find((booking) => booking.id === client?.id)?.id || ownedBookings?.[0]?.id;
+      if (!bookingId) return notify("No booking is linked to this client account.");
+      let receiptPath: string | null = null;
+      const receipt = (event.currentTarget.elements.namedItem("receipt") as HTMLInputElement)?.files?.[0];
+      if (receipt) {
+        receiptPath = `${bookingId}/${Date.now()}-${receipt.name}`;
+        const upload = await supabase.storage.from("payment-receipts").upload(receiptPath, receipt, { upsert: false });
+        if (upload.error) throw new Error(`Receipt upload failed: ${upload.error.message}`);
+      }
+      const { error } = await supabase.from("payments").insert({ booking_id: bookingId, amount, method: data.method, sender_name: data.senderName, reference: data.reference, status: "Submitted", receipt_path: receiptPath });
+      if (error) {
+        if (receiptPath) await supabase.storage.from("payment-receipts").remove([receiptPath]);
+        return notify(error.code === "42501" ? "Payment rejected by security policy. Log in with the client account that created this booking." : `Payment could not be submitted: ${error.message}`);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      notify("Payment submitted successfully. It is waiting for admin confirmation.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected payment submission error.";
+      notify(message);
     } finally {
       setPaymentSubmitting(false);
     }
