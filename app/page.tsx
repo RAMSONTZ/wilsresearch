@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   CircleDot,
@@ -276,14 +277,38 @@ function mapBooking(row: SupabaseBookingRow): Booking {
   };
 }
 
+async function loadBookings() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { bookings: [seedBooking], isAdmin: false, userId: "" };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  const isAdmin = profile?.role === "admin";
+  let query = supabase
+    .from("bookings")
+    .select(
+      "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
+    );
+  if (!isAdmin) query = query.eq("client_id", user.id);
+  const { data, error } = await query;
+  if (error) throw error;
+  return { bookings: (data || []).map(mapBooking), isAdmin, userId: user.id };
+}
+
 export default function Home() {
   const [route, setRoute] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [bookings, setBookings] = useState<Booking[]>([seedBooking]);
   const [clientId, setClientId] = useState("");
-  const [admin, setAdmin] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState(seedBooking.id);
+  const queryClient = useQueryClient();
+  const bookingsQuery = useQuery({ queryKey: ["bookings"], queryFn: loadBookings, initialData: { bookings: [seedBooking], isAdmin: false, userId: "" } });
+  const bookings = bookingsQuery.data.bookings;
+  const admin = bookingsQuery.data.isAdmin;
 
   useEffect(() => {
     const sync = () =>
@@ -292,38 +317,12 @@ export default function Home() {
       );
     sync();
     window.addEventListener("hashchange", sync);
-    const load = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      const isAdmin = profile?.role === "admin";
-      setAdmin(isAdmin);
-      let query = supabase
-        .from("bookings")
-        .select(
-          "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
-        );
-      if (!isAdmin) query = query.eq("client_id", user.id);
-      const { data } = await query;
-      if (data) {
-        const mapped = data.map(mapBooking);
-        setBookings(mapped);
-        if (!isAdmin) setClientId(mapped[0]?.id || "");
-      }
-    };
-    void load();
     return () => window.removeEventListener("hashchange", sync);
   }, []);
   const client = bookings.find((booking) => booking.id === clientId);
   const selected =
     bookings.find((booking) => booking.id === selectedId) || bookings[0];
-  const save = (next: Booking[]) => setBookings(next);
+  const save = (next: Booking[]) => queryClient.setQueryData(["bookings"], { bookings: next, isAdmin: admin, userId: bookingsQuery.data.userId });
   const go = (target: string) => {
     window.location.hash = target;
     setMenuOpen(false);
@@ -383,6 +382,17 @@ export default function Home() {
           ? "Your session expired. Log in again before submitting a booking."
           : error?.message || "Could not submit booking.",
       );
+    const files = Array.from(
+      (event.currentTarget.elements.namedItem("files") as HTMLInputElement)?.files || [],
+    );
+    for (const file of files) {
+      const storagePath = `${booking.id}/${Date.now()}-${file.name}`;
+      const upload = await supabase.storage.from("client-files").upload(storagePath, file, { upsert: false });
+      if (upload.error) return notify(`Booking created, but ${file.name} could not be uploaded.`);
+      const documentInsert = await supabase.from("documents").insert({ booking_id: booking.id, uploaded_by: session.user.id, name: file.name, document_type: "Client Files", storage_path: storagePath, is_final: false });
+      if (documentInsert.error) return notify(`Booking created, but ${file.name} could not be listed.`);
+    }
+    void queryClient.invalidateQueries({ queryKey: ["bookings"] });
     setClientId(booking.id);
     notify(`Booking ${booking.id} received`);
     go("confirmation");
@@ -407,7 +417,7 @@ export default function Home() {
       )
       .eq("client_id", user?.id || "");
     const mapped = (rows || []).map(mapBooking);
-    setBookings(mapped);
+    queryClient.setQueryData(["bookings"], { bookings: mapped, isAdmin: false, userId: user?.id || "" });
     setClientId(mapped[0]?.id || "");
     go("account");
   }
@@ -438,8 +448,7 @@ export default function Home() {
       .select(
         "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
       );
-    setAdmin(true);
-    setBookings((rows || []).map(mapBooking));
+    queryClient.setQueryData(["bookings"], { bookings: (rows || []).map(mapBooking), isAdmin: true, userId: user?.id || "" });
     go("admin");
   }
   async function updateBooking(changes: Partial<Booking>) {
@@ -459,6 +468,7 @@ export default function Home() {
         booking.id === selected.id ? { ...booking, ...changes } : booking,
       ),
     );
+    void queryClient.invalidateQueries({ queryKey: ["bookings"] });
   }
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -469,6 +479,14 @@ export default function Home() {
     const receipt = (
       event.currentTarget.elements.namedItem("receipt") as HTMLInputElement
     )?.files?.[0];
+    let receiptPath: string | null = null;
+    if (receipt) {
+      receiptPath = `${client.id}/${Date.now()}-${receipt.name}`;
+      const upload = await supabase.storage
+        .from("payment-receipts")
+        .upload(receiptPath, receipt, { upsert: false });
+      if (upload.error) return notify("The payment receipt could not be uploaded.");
+    }
     const { error } = await supabase
       .from("payments")
       .insert({
@@ -478,9 +496,10 @@ export default function Home() {
         sender_name: data.senderName,
         reference: data.reference,
         status: "Submitted",
-        receipt_path: receipt?.name || null,
+        receipt_path: receiptPath,
       });
     if (error) return notify(error.message);
+    void queryClient.invalidateQueries({ queryKey: ["bookings"] });
     notify("Payment submitted for admin confirmation.");
   }
   async function downloadDocument(document: Document, booking: Booking) {
@@ -598,7 +617,11 @@ export default function Home() {
           go={go}
           onLogout={() => {
             void supabase.auth.signOut();
-            setAdmin(false);
+            queryClient.setQueryData(["bookings"], {
+              bookings: [seedBooking],
+              isAdmin: false,
+              userId: "",
+            });
             go("login");
           }}
         />
@@ -1415,6 +1438,7 @@ function AdminDetail({
   save: (next: Booking[]) => void;
   bookings: Booking[];
 }) {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState(booking.status);
   const [amount, setAmount] = useState(String(booking.agreedAmount));
   const [documentType, setDocumentType] = useState("Final Work");
@@ -1439,6 +1463,7 @@ function AdminDetail({
         : item,
     );
     save(next);
+    void queryClient.invalidateQueries({ queryKey: ["bookings"] });
   };
   const uploadDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1452,6 +1477,7 @@ function AdminDetail({
     setUploading(false);
     if (error || !document) return;
     save(bookings.map((item) => item.id === booking.id ? { ...item, documents: [...item.documents, { id: document.id, name: document.name, type: document.document_type, final: document.is_final, storagePath: document.storage_path }] } : item));
+    void queryClient.invalidateQueries({ queryKey: ["bookings"] });
   };
   return (
     <div className="panel admin-detail">
