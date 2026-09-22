@@ -306,8 +306,9 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState(seedBooking.id);
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const queryClient = useQueryClient();
-  const bookingsQuery = useQuery({ queryKey: ["bookings"], queryFn: loadBookings, initialData: { bookings: [seedBooking], isAdmin: false, userId: "" } });
+  const bookingsQuery = useQuery({ queryKey: ["bookings"], queryFn: loadBookings, initialData: { bookings: [], isAdmin: false, userId: "" } });
   const bookings = bookingsQuery.data.bookings;
   const admin = bookingsQuery.data.isAdmin;
 
@@ -318,8 +319,20 @@ export default function Home() {
       );
     sync();
     window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, []);
+    const restoreAuth = async () => {
+      await supabase.auth.getSession();
+      setAuthReady(true);
+      await queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    };
+    void restoreAuth();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    });
+    return () => {
+      window.removeEventListener("hashchange", sync);
+      listener.subscription.unsubscribe();
+    };
+  }, [queryClient]);
   const client =
     bookings.find((booking) => booking.id === clientId) ||
     (!admin && bookingsQuery.data.userId ? bookings[0] : undefined);
@@ -335,6 +348,10 @@ export default function Home() {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 3200);
   };
+
+  if (!authReady || bookingsQuery.isLoading) {
+    return <main className="product-shell loading-screen"><span className="eyebrow">Wils Research</span><h1>Restoring your workspace...</h1><p>Your session and project data are being loaded.</p></main>;
+  }
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -485,7 +502,8 @@ export default function Home() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return notify("Your client session expired. Please log in again.");
-      const data = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
+      const form = event.currentTarget;
+      const data = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
       const amount = Number(data.amount);
       if (!Number.isFinite(amount) || amount <= 0) return notify("Enter a valid payment amount.");
       const { data: ownedBookings, error: bookingError } = await supabase
@@ -497,17 +515,18 @@ export default function Home() {
       const bookingId = ownedBookings?.find((booking) => booking.id === client?.id)?.id || ownedBookings?.[0]?.id;
       if (!bookingId) return notify("No booking is linked to this client account.");
       let receiptPath: string | null = null;
-      const receipt = (event.currentTarget.elements.namedItem("receipt") as HTMLInputElement)?.files?.[0];
+      const receipt = (form.elements.namedItem("receipt") as HTMLInputElement)?.files?.[0];
       if (receipt) {
         receiptPath = `${bookingId}/${Date.now()}-${receipt.name}`;
         const upload = await supabase.storage.from("payment-receipts").upload(receiptPath, receipt, { upsert: false });
         if (upload.error) throw new Error(`Receipt upload failed: ${upload.error.message}`);
       }
-      const { error } = await supabase.from("payments").insert({ booking_id: bookingId, amount, method: data.method, sender_name: data.senderName, reference: data.reference, status: "Submitted", receipt_path: receiptPath });
+      const { data: insertedPayment, error } = await supabase.from("payments").insert({ booking_id: bookingId, amount, method: data.method, sender_name: data.senderName, reference: data.reference, status: "Submitted", receipt_path: receiptPath }).select("id").single();
       if (error) {
         if (receiptPath) await supabase.storage.from("payment-receipts").remove([receiptPath]);
         return notify(error.code === "42501" ? "Payment rejected by security policy. Log in with the client account that created this booking." : `Payment could not be submitted: ${error.message}`);
       }
+      if (!insertedPayment) throw new Error("Supabase did not return the saved payment row.");
       await queryClient.invalidateQueries({ queryKey: ["bookings"] });
       notify("Payment submitted successfully. It is waiting for admin confirmation.");
     } catch (error) {
@@ -533,13 +552,9 @@ export default function Home() {
   }
   async function deleteProject(booking: Booking) {
     if (!window.confirm(`Delete ${booking.title}? This cannot be undone.`)) return;
-    const buckets = ["client-files", "payment-receipts", "deliverables"];
-    for (const bucket of buckets) {
-      const { data: files } = await supabase.storage.from(bucket).list(booking.id);
-      if (files?.length) await supabase.storage.from(bucket).remove(files.map((file) => `${booking.id}/${file.name}`));
-    }
-    const { error } = await supabase.from("bookings").delete().eq("id", booking.id);
-    if (error) return notify(error.message);
+    const response = await fetch(`/api/admin/projects/${booking.id}`, { method: "DELETE" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) return notify(result.error || "Project and account could not be deleted.");
     await queryClient.invalidateQueries({ queryKey: ["bookings"] });
     setSelectedId("");
     notify("Project and its records were deleted.");
@@ -599,6 +614,7 @@ export default function Home() {
         </button>
       </header>
       {notice && <div className="toast">{notice}</div>}
+      {bookingsQuery.error && <div className="toast">Could not load your project data: {bookingsQuery.error.message}</div>}
       {route === "home" || route === "how" || route === "work" ? (
         <HomeView go={go} />
       ) : route === "services" ? (

@@ -18,7 +18,9 @@ set role = 'admin'
 where id = 'AUTH_USER_UUID_FROM_SUPABASE_AUTH_USERS';
 ```
 
-The Supabase boundaries are [lib/supabase/browser.ts](lib/supabase/browser.ts) and [lib/supabase/server.ts](lib/supabase/server.ts). Use the browser client for interactive client features and the server client for Server Components, Route Handlers, and Server Actions. Never import a service-role key into client code.
+The Supabase boundaries are [lib/supabase/browser.ts](lib/supabase/browser.ts), [lib/supabase/server.ts](lib/supabase/server.ts), and the server-only [lib/supabase/admin.ts](lib/supabase/admin.ts). Use the browser client for interactive client features and the server client for Server Components, Route Handlers, and Server Actions. The service-role client is used only by the protected admin deletion route and must never be imported into client code.
+
+Deleting a project from the admin dashboard now removes its Storage files, booking records, profile cascade, and Supabase Auth user. Set `SUPABASE_SERVICE_ROLE_KEY` in Vercel Environment Variables for the API route to work in production.
 
 The page uses Supabase Auth and relational queries for email/password client booking and login, admin login, payments, payment confirmation, deliverable uploads, and signed downloads. The client email is the username. Disable email confirmation in Supabase to prevent verification messages; Auth still has abuse protection, but this flow does not use anonymous sign-ins.
 
