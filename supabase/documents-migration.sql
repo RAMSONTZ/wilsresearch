@@ -5,7 +5,7 @@ create index if not exists bookings_client_id_idx on public.bookings (client_id)
 create index if not exists documents_booking_id_idx on public.documents (booking_id);
 create index if not exists payments_booking_id_status_idx on public.payments (booking_id, status);
 
- drop policy if exists "clients upload own document metadata" on public.documents;
+drop policy if exists "clients upload own document metadata" on public.documents;
 create policy "clients upload own document metadata"
 on public.documents for insert
 with check (
@@ -19,21 +19,14 @@ with check (
 
 drop policy if exists "clients read own documents" on public.documents;
 drop policy if exists "clients read unlocked own documents" on public.documents;
-create policy "clients read unlocked own documents"
+drop policy if exists "clients read own document metadata" on public.documents;
+create policy "clients read own document metadata"
 on public.documents for select
 using (
   exists (
     select 1 from public.bookings
     where bookings.id = documents.booking_id
       and bookings.client_id = auth.uid()
-  )
-  and (
-    not documents.is_final
-    or (
-      (select bookings.status from public.bookings where bookings.id = documents.booking_id) in ('Completed', 'Paid', 'Delivered')
-      and coalesce((select sum(payments.amount) from public.payments where payments.booking_id = documents.booking_id and payments.status = 'Received'), 0)
-        >= (select bookings.agreed_amount from public.bookings where bookings.id = documents.booking_id)
-    )
   )
 );
 

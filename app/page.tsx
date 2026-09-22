@@ -1539,7 +1539,7 @@ function AdminDetail({
     if (error || !document) { notify(error?.message || "Document metadata could not be saved."); return; }
     save(bookings.map((item) => item.id === booking.id ? { ...item, documents: [...item.documents, { id: document.id, name: document.name, type: document.document_type, final: document.is_final, storagePath: document.storage_path }] } : item));
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
-    notify("Document uploaded and visible to the client.");
+    notify(`${file.name} uploaded successfully and is now visible in the client workspace.`);
   };
   return (
     <div className="panel admin-detail">
