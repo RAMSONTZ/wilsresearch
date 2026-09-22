@@ -339,33 +339,17 @@ export default function Home() {
     const data = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     ) as Record<string, string>;
-    if (!data.email) return notify("Email is required for a secure account.");
     let {
       data: { session },
     } = await supabase.auth.getSession();
 
     if (!session) {
-      const { data: auth, error: signUpError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.accessCode,
+      const { data: auth, error } = await supabase.auth.signInAnonymously({
         options: { data: { username: data.username, phone: data.phone } },
       });
-
-      if (signUpError) {
-        if (signUpError.message.toLowerCase().includes("rate limit")) {
-          return notify(
-            "Supabase email rate limit reached. Wait a few minutes, then try again, or log in if this email already has an account.",
-          );
-        }
-        return notify(signUpError.message);
-      }
-
+      if (error || !auth.session)
+        return notify(error?.message || "Could not start an anonymous session.");
       session = auth.session;
-      if (!session) {
-        return notify(
-          "Check your email to confirm your account, then log in before submitting a booking.",
-        );
-      }
     }
 
     const { data: service } = await supabase
@@ -379,7 +363,7 @@ export default function Home() {
         client_id: session.user.id,
         service_id: service?.id,
         phone: data.phone,
-        email: data.email,
+        email: data.email || null,
         university: data.university,
         registration: data.registration,
         course: data.course,
@@ -404,13 +388,7 @@ export default function Home() {
   }
   async function clientLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = Object.fromEntries(
-      new FormData(event.currentTarget).entries(),
-    ) as Record<string, string>;
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.username,
-      password: data.accessCode,
-    });
+    const { error } = await supabase.auth.signInAnonymously();
     if (error) return notify(error.message);
     const {
       data: { user },
@@ -420,7 +398,7 @@ export default function Home() {
       .select(
         "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
       )
-      .eq("client_id", user?.id);
+      .eq("client_id", user?.id || "");
     const mapped = (rows || []).map(mapBooking);
     setBookings(mapped);
     setClientId(mapped[0]?.id || "");
@@ -545,6 +523,9 @@ export default function Home() {
             rel="noreferrer"
           >
             <MessageCircle size={14} /> WhatsApp
+          </a>
+          <a className="nav-login" href="#login" onClick={() => setMenuOpen(false)}>
+            Login
           </a>
           <a
             className="button gold"
@@ -827,14 +808,8 @@ function BookingView({
     >
       <form className="panel form-grid" onSubmit={onSubmit}>
         <Field label="Reference Username" name="username" required />
-        <Field
-          label="Temporary Password"
-          name="accessCode"
-          type="password"
-          required
-        />
         <Field label="Phone / WhatsApp" name="phone" type="tel" required />
-        <Field label="Email" name="email" type="email" required />
+        <Field label="Contact email (optional, not used for login)" name="email" type="email" />
         <Field label="University / Institution" name="university" />
         <Field label="Registration Number" name="registration" />
         <Field label="Course / Programme" name="course" />
@@ -1004,11 +979,9 @@ function LoginView({
         <form className="panel" onSubmit={onClientLogin}>
           <LockKeyhole size={22} />
           <h3>Client Login</h3>
-          <p>Use the email and password created during booking.</p>
-          <Field label="Email" name="username" type="email" required />
-          <Field label="Password" name="accessCode" type="password" required />
+          <p>Continue with this browser&apos;s anonymous client session. No email is required.</p>
           <button className="button gold" type="submit">
-            Login
+            Continue as Client
           </button>
           <button
             className="text-button"
