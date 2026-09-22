@@ -319,7 +319,9 @@ export default function Home() {
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
-  const client = bookings.find((booking) => booking.id === clientId);
+  const client =
+    bookings.find((booking) => booking.id === clientId) ||
+    (!admin && bookingsQuery.data.userId ? bookings[0] : undefined);
   const selected =
     bookings.find((booking) => booking.id === selectedId) || bookings[0];
   const save = (next: Booking[]) => queryClient.setQueryData(["bookings"], { bookings: next, isAdmin: admin, userId: bookingsQuery.data.userId });

@@ -38,6 +38,7 @@ using (
 );
 
 drop policy if exists "clients read their own deliverables" on storage.objects;
+drop policy if exists "clients read unlocked own deliverables" on storage.objects;
 create policy "clients read unlocked own deliverables"
 on storage.objects for select to authenticated
 using (
