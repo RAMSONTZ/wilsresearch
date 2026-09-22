@@ -133,9 +133,13 @@ type Booking = {
   phone: string;
   email: string;
   university: string;
+  registration: string;
+  course: string;
   service: string;
   title: string;
+  design: string;
   description: string;
+  notes: string;
   expectedDate: string;
   deadline: string;
   status: string;
@@ -167,10 +171,14 @@ const seedBooking: Booking = {
   phone: CONTACT.phone,
   email: "aisha@example.com",
   university: "KCMUCo",
+  registration: "KCM/2026/001",
+  course: "Public Health",
   service: "data-analysis",
   title: "Data Analysis for Hypertension Study",
+  design: "Cross-sectional study",
   description:
     "Clean dataset, analyze hypertension variables and prepare tables.",
+  notes: "",
   expectedDate: daysFromNow(7),
   deadline: daysFromNow(7),
   status: "In Progress",
@@ -237,7 +245,7 @@ const supabase = new Proxy(
 
 type SupabasePayment = { id: string; amount: number; method: string; sender_name?: string; reference?: string; status: string; receipt_path?: string };
 type SupabaseDocument = { id: string; name: string; document_type: string; is_final: boolean; storage_path?: string };
-type SupabaseBookingRow = { id: string; email?: string; phone?: string; university?: string; title: string; description?: string; expected_date?: string; deadline?: string; status: string; agreed_amount?: number; profiles?: { username?: string; phone?: string; account_expires_at?: string }; services?: { slug?: string }; payments?: SupabasePayment[]; documents?: SupabaseDocument[]; booking_messages?: { message: string }[]; booking_activity?: { description: string }[] };
+type SupabaseBookingRow = { id: string; email?: string; phone?: string; university?: string; title: string; description?: string; registration?: string; course?: string; design?: string; notes?: string; expected_date?: string; deadline?: string; status: string; agreed_amount?: number; profiles?: { username?: string; phone?: string; account_expires_at?: string }; services?: { slug?: string }; payments?: SupabasePayment[]; documents?: SupabaseDocument[]; booking_messages?: { message: string }[]; booking_activity?: { description: string }[]; feedback?: { comment?: string }[] };
 
 function mapBooking(row: SupabaseBookingRow): Booking {
   return {
@@ -248,9 +256,13 @@ function mapBooking(row: SupabaseBookingRow): Booking {
     phone: row.phone || row.profiles?.phone || "",
     email: row.email || "",
     university: row.university || "",
+    registration: row.registration || "",
+    course: row.course || "",
     service: row.services?.slug || "",
     title: row.title,
+    design: row.design || "",
     description: row.description || "",
+    notes: row.notes || "",
     expectedDate: row.expected_date || "",
     deadline: row.deadline || "",
     status: row.status,
@@ -274,6 +286,7 @@ function mapBooking(row: SupabaseBookingRow): Booking {
     })),
     messages: (row.booking_messages || []).map((message) => message.message),
     activity: (row.booking_activity || []).map((activity) => activity.description),
+    feedback: row.feedback?.[0]?.comment || "",
   };
 }
 
@@ -291,7 +304,7 @@ async function loadBookings() {
   let query = supabase
     .from("bookings")
     .select(
-      "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
+      "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*), feedback(*)",
     );
   if (!isAdmin) query = query.eq("client_id", user.id);
   const { data, error } = await query;
@@ -355,8 +368,9 @@ export default function Home() {
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     const data = Object.fromEntries(
-      new FormData(event.currentTarget).entries(),
+      new FormData(form).entries(),
     ) as Record<string, string>;
     if (!data.email || !data.accessCode)
       return notify("Email and password are required for client login.");
@@ -403,7 +417,7 @@ export default function Home() {
           : error?.message || "Could not submit booking.",
       );
     const files = Array.from(
-      (event.currentTarget.elements.namedItem("files") as HTMLInputElement)?.files || [],
+      (form.elements.namedItem("files") as HTMLInputElement)?.files || [],
     );
     for (const file of files) {
       const storagePath = `${booking.id}/${Date.now()}-${file.name}`;
@@ -413,12 +427,14 @@ export default function Home() {
       if (documentInsert.error) return notify(`Booking created, but ${file.name} could not be listed.`);
     }
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    form.reset();
     setClientId(booking.id);
     notify(`Booking ${booking.id} received`);
     go("confirmation");
   }
   async function clientLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     const data = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     ) as Record<string, string>;
@@ -433,17 +449,19 @@ export default function Home() {
     const { data: rows } = await supabase
       .from("bookings")
       .select(
-        "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
+        "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*), feedback(*)",
       )
       .eq("client_id", user?.id || "");
     const mapped = (rows || []).map(mapBooking);
     queryClient.setQueryData(["bookings"], { bookings: mapped, isAdmin: false, userId: user?.id || "" });
     setClientId(mapped[0]?.id || "");
+    form.reset();
     notify("Client login successful. Your project workspace is ready.");
     go("account");
   }
   async function adminLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     const data = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     ) as Record<string, string>;
@@ -467,9 +485,10 @@ export default function Home() {
     const { data: rows } = await supabase
       .from("bookings")
       .select(
-        "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
+        "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*), feedback(*)",
       );
     queryClient.setQueryData(["bookings"], { bookings: (rows || []).map(mapBooking), isAdmin: true, userId: user?.id || "" });
+    form.reset();
     notify("Admin login successful. Bookings are up to date.");
     go("admin");
   }
@@ -528,6 +547,7 @@ export default function Home() {
       }
       if (!insertedPayment) throw new Error("Supabase did not return the saved payment row.");
       await queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      form.reset();
       notify("Payment submitted successfully. It is waiting for admin confirmation.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected payment submission error.";
@@ -535,6 +555,22 @@ export default function Home() {
     } finally {
       setPaymentSubmitting(false);
     }
+  }
+  async function submitFeedback(feedback: string) {
+    if (!client) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return notify("Your client session expired. Please log in again.");
+    const { error } = await supabase.from("feedback").upsert({
+      booking_id: client.id,
+      client_id: user.id,
+      stars: 5,
+      comment: feedback,
+    }, { onConflict: "booking_id" });
+    if (error) return notify(`Feedback could not be saved: ${error.message}`);
+    await queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    notify("Your feedback was saved successfully and is visible to the admin.");
   }
   async function downloadDocument(document: Document, booking: Booking) {
     const total = totals(booking);
@@ -638,13 +674,7 @@ export default function Home() {
           onPayment={submitPayment}
           paymentSubmitting={paymentSubmitting}
           onDownload={downloadDocument}
-          onFeedback={(feedback) =>
-            client &&
-            updateBooking({
-              feedback,
-              activity: [...client.activity, "Client rating saved"],
-            })
-          }
+          onFeedback={submitFeedback}
           onLogout={() => {
             void supabase.auth.signOut();
             setClientId("");
@@ -924,9 +954,7 @@ function BookingView({
         <Field label="Additional Notes" name="notes" full textarea />
         <Field label="Upload Files" name="files" type="file" full multiple />
         <div className="notice full">
-          <ShieldCheck size={17} /> Your email is used only as your login
-          username and for account recovery. Your project data remains protected
-          by Supabase Row Level Security.
+          <ShieldCheck size={17} /> After your project has been reviewed by the admin, you have to pay 30% of the agreed price as collateral before commencement of the project.
         </div>
         <button className="button gold" type="submit">
           Submit Booking <ArrowUpRight size={16} />
@@ -1153,7 +1181,7 @@ function AccountView({
   onPayment: (event: FormEvent<HTMLFormElement>) => void;
   paymentSubmitting: boolean;
   onDownload: (document: Document, booking: Booking) => void;
-  onFeedback: (feedback: string) => void;
+  onFeedback: (feedback: string) => void | Promise<void>;
   onLogout: () => void;
 }) {
   if (!client)
@@ -1318,15 +1346,11 @@ function AccountView({
             <textarea id="feedbackText" placeholder="Your feedback" />
             <button
               className="button gold"
-              onClick={() =>
-                onFeedback(
-                  (
-                    document.getElementById(
-                      "feedbackText",
-                    ) as HTMLTextAreaElement
-                  ).value,
-                )
-              }
+              onClick={async () => {
+                const field = document.getElementById("feedbackText") as HTMLTextAreaElement;
+                await onFeedback(field.value);
+                field.value = "";
+              }}
             >
               Save Rating
             </button>
@@ -1528,7 +1552,8 @@ function AdminDetail({
   };
   const uploadDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const file = (event.currentTarget.elements.namedItem("deliverable") as HTMLInputElement)?.files?.[0];
+    const form = event.currentTarget;
+    const file = (form.elements.namedItem("deliverable") as HTMLInputElement)?.files?.[0];
     if (!file) return;
     setUploading(true);
     const storagePath = `${booking.id}/${Date.now()}-${file.name}`;
@@ -1539,6 +1564,7 @@ function AdminDetail({
     if (error || !document) { notify(error?.message || "Document metadata could not be saved."); return; }
     save(bookings.map((item) => item.id === booking.id ? { ...item, documents: [...item.documents, { id: document.id, name: document.name, type: document.document_type, final: document.is_final, storagePath: document.storage_path }] } : item));
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    form.reset();
     notify(`${file.name} uploaded successfully and is now visible in the client workspace.`);
   };
   return (
@@ -1549,6 +1575,14 @@ function AdminDetail({
         {booking.phone} · {booking.email}
         <br />
         {serviceName(booking.service)} · {booking.title}
+        <br />
+        University: {booking.university || "Not provided"} · Registration: {booking.registration || "Not provided"}
+        <br />
+        Course: {booking.course || "Not provided"} · Design: {booking.design || "Not provided"}
+        <br />
+        Brief: {booking.description || "Not provided"}
+        <br />
+        Notes: {booking.notes || "None"}
       </p>
       <div className="form-grid">
         <label>
@@ -1642,6 +1676,8 @@ function AdminDetail({
           {item}
         </p>
       ))}
+      <h3>Client Feedback</h3>
+      <p>{booking.feedback || "No feedback submitted yet."}</p>
     </div>
   );
 }
