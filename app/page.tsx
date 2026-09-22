@@ -477,19 +477,20 @@ export default function Home() {
   }
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!client) return;
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return notify("Your client session expired. Please log in again.");
-    const { data: ownedBooking } = await supabase
+    const { data: ownedBookings, error: bookingError } = await supabase
       .from("bookings")
       .select("id")
-      .eq("id", client.id)
       .eq("client_id", user.id)
-      .maybeSingle();
-    if (!ownedBooking)
-      return notify("This booking does not belong to the current client account.");
+      .order("created_at", { ascending: false });
+    if (bookingError) return notify(bookingError.message);
+    const bookingId = ownedBookings?.find((booking) => booking.id === client?.id)?.id || ownedBookings?.[0]?.id;
+    if (!bookingId) return notify("No booking is linked to this client account.");
+    const activeBooking = bookings.find((booking) => booking.id === bookingId) || client;
+    if (!activeBooking) return notify("Your booking is still loading. Please try again.");
     const data = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     ) as Record<string, string>;
@@ -498,7 +499,7 @@ export default function Home() {
     )?.files?.[0];
     let receiptPath: string | null = null;
     if (receipt) {
-      receiptPath = `${client.id}/${Date.now()}-${receipt.name}`;
+      receiptPath = `${bookingId}/${Date.now()}-${receipt.name}`;
       const upload = await supabase.storage
         .from("payment-receipts")
         .upload(receiptPath, receipt, { upsert: false });
@@ -507,7 +508,7 @@ export default function Home() {
     const { error } = await supabase
       .from("payments")
       .insert({
-        booking_id: client.id,
+        booking_id: bookingId,
         amount: Number(data.amount),
         method: data.method,
         sender_name: data.senderName,
