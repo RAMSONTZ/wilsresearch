@@ -496,13 +496,13 @@ export default function Home() {
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (paymentSubmitting) return;
+    const form = event.currentTarget;
     setPaymentSubmitting(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return notify("Your client session expired. Please log in again.");
-      const form = event.currentTarget;
       const data = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
       const amount = Number(data.amount);
       if (!Number.isFinite(amount) || amount <= 0) return notify("Enter a valid payment amount.");
