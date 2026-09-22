@@ -339,18 +339,19 @@ export default function Home() {
     const data = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     ) as Record<string, string>;
-    let {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      const { data: auth, error } = await supabase.auth.signInAnonymously({
-        options: { data: { username: data.username, phone: data.phone } },
-      });
-      if (error || !auth.session)
-        return notify(error?.message || "Could not start an anonymous session.");
-      session = auth.session;
-    }
+    if (!data.email || !data.accessCode)
+      return notify("Email and password are required for client login.");
+    const { data: auth, error: signUpError } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.accessCode,
+      options: { data: { username: data.email, phone: data.phone } },
+    });
+    if (signUpError) return notify(signUpError.message);
+    if (!auth.session)
+      return notify(
+        "Email confirmation is enabled in Supabase. Disable Confirm email, then try booking again.",
+      );
+    const session = auth.session;
 
     const { data: service } = await supabase
       .from("services")
@@ -388,7 +389,13 @@ export default function Home() {
   }
   async function clientLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const { error } = await supabase.auth.signInAnonymously();
+    const data = Object.fromEntries(
+      new FormData(event.currentTarget).entries(),
+    ) as Record<string, string>;
+    const { error } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    });
     if (error) return notify(error.message);
     const {
       data: { user },
@@ -807,9 +814,14 @@ function BookingView({
       text="Your booking creates a temporary private account for tracking work, payment and documents."
     >
       <form className="panel form-grid" onSubmit={onSubmit}>
-        <Field label="Reference Username" name="username" required />
+        <Field label="Email / Username" name="email" type="email" required />
+        <Field
+          label="Password"
+          name="accessCode"
+          type="password"
+          required
+        />
         <Field label="Phone / WhatsApp" name="phone" type="tel" required />
-        <Field label="Contact email (optional, not used for login)" name="email" type="email" />
         <Field label="University / Institution" name="university" />
         <Field label="Registration Number" name="registration" />
         <Field label="Course / Programme" name="course" />
@@ -841,9 +853,9 @@ function BookingView({
         <Field label="Additional Notes" name="notes" full textarea />
         <Field label="Upload Files" name="files" type="file" full multiple />
         <div className="notice full">
-          <ShieldCheck size={17} /> Privacy promise: use a reference username
-          instead of your full legal name. Your temporary account expires after
-          the project window.
+          <ShieldCheck size={17} /> Your email is used only as your login
+          username and for account recovery. Your project data remains protected
+          by Supabase Row Level Security.
         </div>
         <button className="button gold" type="submit">
           Submit Booking <ArrowUpRight size={16} />
@@ -979,9 +991,11 @@ function LoginView({
         <form className="panel" onSubmit={onClientLogin}>
           <LockKeyhole size={22} />
           <h3>Client Login</h3>
-          <p>Continue with this browser&apos;s anonymous client session. No email is required.</p>
+          <p>Use the email and password created when you submitted your booking.</p>
+          <Field label="Email / Username" name="email" type="email" required />
+          <Field label="Password" name="password" type="password" required />
           <button className="button gold" type="submit">
-            Continue as Client
+            Login
           </button>
           <button
             className="text-button"
@@ -1022,20 +1036,18 @@ function ConfirmationView({
         <p>
           Booking ID: <strong>{client?.id}</strong>
           <br />
-          Reference: <strong>{client?.username}</strong>
+          Email / Username: <strong>{client?.username}</strong>
           <br />
           Service: {client && serviceName(client.service)}
           <br />
           Status: Pending Review
         </p>
         <div className="notice">
-          <strong>Temporary Account</strong>
+          <strong>Client Account</strong>
           <br />
-          Username: {client?.username}
+          Login with your email and the password you created.
           <br />
-          Password: the password you created
-          <br />
-          Expires: {client?.accountExpiresAt}
+          Account access expires: {client?.accountExpiresAt}
         </div>
         <div className="hero-actions">
           <button className="button gold" onClick={() => go("account")}>
