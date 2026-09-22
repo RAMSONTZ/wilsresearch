@@ -226,7 +226,13 @@ function totals(booking: Booking) {
   };
 }
 
-const supabase = createSupabaseBrowserClient();
+const supabase = new Proxy(
+  {} as ReturnType<typeof createSupabaseBrowserClient>,
+  {
+    get: (_target, property) =>
+      Reflect.get(createSupabaseBrowserClient(), property),
+  },
+);
 
 type SupabasePayment = { id: string; amount: number; method: string; sender_name?: string; reference?: string; status: string; receipt_path?: string };
 type SupabaseDocument = { id: string; name: string; document_type: string; is_final: boolean; storage_path?: string };
