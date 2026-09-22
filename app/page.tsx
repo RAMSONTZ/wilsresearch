@@ -305,6 +305,7 @@ export default function Home() {
   const [clientId, setClientId] = useState("");
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState(seedBooking.id);
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const queryClient = useQueryClient();
   const bookingsQuery = useQuery({ queryKey: ["bookings"], queryFn: loadBookings, initialData: { bookings: [seedBooking], isAdmin: false, userId: "" } });
   const bookings = bookingsQuery.data.bookings;
@@ -477,6 +478,9 @@ export default function Home() {
   }
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (paymentSubmitting) return;
+    setPaymentSubmitting(true);
+    try {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -524,6 +528,9 @@ export default function Home() {
       );
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
     notify("Payment submitted for admin confirmation.");
+    } finally {
+      setPaymentSubmitting(false);
+    }
   }
   async function downloadDocument(document: Document, booking: Booking) {
     const total = totals(booking);
@@ -538,6 +545,19 @@ export default function Home() {
       return notify(error?.message || "Could not create a download link.");
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
     notify(`${document.name} is ready to download.`);
+  }
+  async function deleteProject(booking: Booking) {
+    if (!window.confirm(`Delete ${booking.title}? This cannot be undone.`)) return;
+    const buckets = ["client-files", "payment-receipts", "deliverables"];
+    for (const bucket of buckets) {
+      const { data: files } = await supabase.storage.from(bucket).list(booking.id);
+      if (files?.length) await supabase.storage.from(bucket).remove(files.map((file) => `${booking.id}/${file.name}`));
+    }
+    const { error } = await supabase.from("bookings").delete().eq("id", booking.id);
+    if (error) return notify(error.message);
+    await queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    setSelectedId("");
+    notify("Project and its records were deleted.");
   }
 
   return (
@@ -615,6 +635,7 @@ export default function Home() {
           client={client}
           go={go}
           onPayment={submitPayment}
+          paymentSubmitting={paymentSubmitting}
           onDownload={downloadDocument}
           onFeedback={(feedback) =>
             client &&
@@ -640,6 +661,7 @@ export default function Home() {
           save={save}
           go={go}
           notify={notify}
+          onDelete={deleteProject}
           onLogout={() => {
             void supabase.auth.signOut();
             queryClient.setQueryData(["bookings"], {
@@ -1120,6 +1142,7 @@ function AccountView({
   client,
   go,
   onPayment,
+  paymentSubmitting,
   onDownload,
   onFeedback,
   onLogout,
@@ -1127,6 +1150,7 @@ function AccountView({
   client?: Booking;
   go: (target: string) => void;
   onPayment: (event: FormEvent<HTMLFormElement>) => void;
+  paymentSubmitting: boolean;
   onDownload: (document: Document, booking: Booking) => void;
   onFeedback: (feedback: string) => void;
   onLogout: () => void;
@@ -1237,8 +1261,8 @@ function AccountView({
             <Field label="Sender Name" name="senderName" required />
             <Field label="Transaction Reference" name="reference" required />
             <Field label="Receipt / Screenshot" name="receipt" type="file" />
-            <button className="button gold" type="submit">
-              Submit Payment Info
+            <button className="button gold" type="submit" disabled={paymentSubmitting}>
+              {paymentSubmitting ? "Submitting payment..." : "Submit Payment Info"}
             </button>
           </form>
         </div>
@@ -1329,6 +1353,7 @@ function AdminView({
   save,
   go,
   notify,
+  onDelete,
   onLogout,
 }: {
   admin: boolean;
@@ -1340,6 +1365,7 @@ function AdminView({
   save: (next: Booking[]) => void;
   go: (target: string) => void;
   notify: (message: string) => void;
+  onDelete: (booking: Booking) => void;
   onLogout: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -1449,6 +1475,7 @@ function AdminView({
             save={save}
             bookings={bookings}
             notify={notify}
+            onDelete={onDelete}
           />
         )}
       </div>
@@ -1461,12 +1488,14 @@ function AdminDetail({
   save,
   bookings,
   notify,
+  onDelete,
 }: {
   booking: Booking;
   updateBooking: (changes: Partial<Booking>) => void;
   save: (next: Booking[]) => void;
   bookings: Booking[];
   notify: (message: string) => void;
+  onDelete: (booking: Booking) => void;
 }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(booking.status);
@@ -1557,6 +1586,9 @@ function AdminDetail({
           }
         >
           Save Admin Changes
+        </button>
+        <button className="button danger" type="button" onClick={() => onDelete(booking)}>
+          Delete Project
         </button>
       </div>
       <div className="notice">
