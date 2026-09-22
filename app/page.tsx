@@ -419,6 +419,7 @@ export default function Home() {
     const mapped = (rows || []).map(mapBooking);
     queryClient.setQueryData(["bookings"], { bookings: mapped, isAdmin: false, userId: user?.id || "" });
     setClientId(mapped[0]?.id || "");
+    notify("Client login successful. Your project workspace is ready.");
     go("account");
   }
   async function adminLogin(event: FormEvent<HTMLFormElement>) {
@@ -449,6 +450,7 @@ export default function Home() {
         "*, profiles(username, phone, account_expires_at), services(slug), payments(*), documents(*), booking_messages(*), booking_activity(*)",
       );
     queryClient.setQueryData(["bookings"], { bookings: (rows || []).map(mapBooking), isAdmin: true, userId: user?.id || "" });
+    notify("Admin login successful. Bookings are up to date.");
     go("admin");
   }
   async function updateBooking(changes: Partial<Booking>) {
@@ -469,10 +471,23 @@ export default function Home() {
       ),
     );
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    notify("Booking changes saved successfully.");
   }
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!client) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return notify("Your client session expired. Please log in again.");
+    const { data: ownedBooking } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("id", client.id)
+      .eq("client_id", user.id)
+      .maybeSingle();
+    if (!ownedBooking)
+      return notify("This booking does not belong to the current client account.");
     const data = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     ) as Record<string, string>;
@@ -498,7 +513,12 @@ export default function Home() {
         status: "Submitted",
         receipt_path: receiptPath,
       });
-    if (error) return notify(error.message);
+    if (error)
+      return notify(
+        error.code === "42501"
+          ? "Payment rejected by security policy. Log in with the client account that created this booking."
+          : error.message,
+      );
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
     notify("Payment submitted for admin confirmation.");
   }
@@ -514,6 +534,7 @@ export default function Home() {
     if (error || !data?.signedUrl)
       return notify(error?.message || "Could not create a download link.");
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    notify(`${document.name} is ready to download.`);
   }
 
   return (
@@ -615,6 +636,7 @@ export default function Home() {
           updateBooking={updateBooking}
           save={save}
           go={go}
+          notify={notify}
           onLogout={() => {
             void supabase.auth.signOut();
             queryClient.setQueryData(["bookings"], {
@@ -1303,6 +1325,7 @@ function AdminView({
   updateBooking,
   save,
   go,
+  notify,
   onLogout,
 }: {
   admin: boolean;
@@ -1313,6 +1336,7 @@ function AdminView({
   updateBooking: (changes: Partial<Booking>) => void;
   save: (next: Booking[]) => void;
   go: (target: string) => void;
+  notify: (message: string) => void;
   onLogout: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -1421,6 +1445,7 @@ function AdminView({
             updateBooking={updateBooking}
             save={save}
             bookings={bookings}
+            notify={notify}
           />
         )}
       </div>
@@ -1432,11 +1457,13 @@ function AdminDetail({
   updateBooking,
   save,
   bookings,
+  notify,
 }: {
   booking: Booking;
   updateBooking: (changes: Partial<Booking>) => void;
   save: (next: Booking[]) => void;
   bookings: Booking[];
+  notify: (message: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(booking.status);
@@ -1448,7 +1475,7 @@ function AdminDetail({
       .from("payments")
       .update({ status: "Received", received_at: new Date().toISOString() })
       .eq("id", paymentId);
-    if (error) return;
+    if (error) return notify(error.message);
     const next = bookings.map((item) =>
       item.id === booking.id
         ? {
@@ -1464,6 +1491,7 @@ function AdminDetail({
     );
     save(next);
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    notify("Payment marked as received. Client balance updated.");
   };
   const uploadDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1472,12 +1500,13 @@ function AdminDetail({
     setUploading(true);
     const storagePath = `${booking.id}/${Date.now()}-${file.name}`;
     const upload = await supabase.storage.from("deliverables").upload(storagePath, file, { upsert: false });
-    if (upload.error) { setUploading(false); return; }
+    if (upload.error) { setUploading(false); notify(upload.error.message); return; }
     const { data: document, error } = await supabase.from("documents").insert({ booking_id: booking.id, name: file.name, document_type: documentType, storage_path: storagePath, is_final: documentType === "Final Work" }).select("*").single();
     setUploading(false);
-    if (error || !document) return;
+    if (error || !document) { notify(error?.message || "Document metadata could not be saved."); return; }
     save(bookings.map((item) => item.id === booking.id ? { ...item, documents: [...item.documents, { id: document.id, name: document.name, type: document.document_type, final: document.is_final, storagePath: document.storage_path }] } : item));
     void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    notify("Document uploaded and visible to the client.");
   };
   return (
     <div className="panel admin-detail">
