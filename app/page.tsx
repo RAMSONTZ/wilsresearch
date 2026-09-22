@@ -557,7 +557,7 @@ export default function Home() {
     if (!response.ok) return notify(result.error || "Project and account could not be deleted.");
     await queryClient.invalidateQueries({ queryKey: ["bookings"] });
     setSelectedId("");
-    notify("Project and its records were deleted.");
+    notify(result.accountDeleted === false ? result.message : "Project and client account were deleted.");
   }
 
   return (
