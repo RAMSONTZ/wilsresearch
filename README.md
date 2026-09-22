@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WILS Research
 
-## Getting Started
+WILS Research is a Next.js booking, client portal, and owner dashboard for academic, medical, and business research support. The interface uses Motion, Lucide, and a Supabase-ready data boundary.
 
-First, run the development server:
+## Supabase setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+1. Create a Supabase project.
+2. Open **SQL Editor**, paste [supabase/schema.sql](supabase/schema.sql), and run it once.
+3. If the base script was already run, paste [supabase/workflow-migration.sql](supabase/workflow-migration.sql) and run it. This adds the payment gate and client deliverable Storage policy.
+4. In **Authentication > Providers**, enable Email. For immediate booking creation, turn off email confirmation during development, or add an email-confirmation route before allowing booking submission.
+5. Create the owner account in **Authentication > Users** with an email and password.
+6. Copy `.env.local.example` to `.env.local` and fill in the project URL and publishable key. Keep the service-role key server-only.
+7. Set the owner profile to admin after the owner account exists:
+
+```sql
+update public.profiles
+set role = 'admin'
+where id = 'AUTH_USER_UUID_FROM_SUPABASE_AUTH_USERS';
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Supabase boundaries are [lib/supabase/browser.ts](lib/supabase/browser.ts) and [lib/supabase/server.ts](lib/supabase/server.ts). Use the browser client for interactive client features and the server client for Server Components, Route Handlers, and Server Actions. Never import a service-role key into client code.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The page now uses Supabase Auth and relational queries for booking, client login, admin login, payments, payment confirmation, deliverable uploads, and signed downloads. Final work is blocked by both the database completion trigger and the client-side download guard until confirmed payments equal the agreed amount.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Run locally
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open <http://localhost:3000>. The local preview client is `Aisha2026` / `WR-48291`; the local admin bridge accepts `WILS-2026`. Replace these preview handlers before production.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The floating WhatsApp action links to `0786609975` using the international `wa.me/255786609975` format.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Checks
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run lint
+npm run build
+```
