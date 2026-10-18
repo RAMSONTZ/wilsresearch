@@ -1,0 +1,151 @@
+/* WILS Research — Editorial light system, 2026 */
+:root{--bg:#fbfcf9;--cream:#f5f8f1;--forest:#113c2d;--emerald:#136d51;--mint:#dff1e4;--line2:#dce8df;--copy:#516458;--white:#fff;--radius:20px}
+html,body{max-width:100%;}html{scroll-behavior:smooth}
+body{background:var(--bg);color:#1e3428;font-family:Inter,'Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;font-size:15px;line-height:1.58}
+h1,h2,h3{color:var(--forest);letter-spacing:-.025em;font-weight:700}
+p{color:var(--copy)}
+.header{height:72px;z-index:999;background:rgba(255,255,255,.96);backdrop-filter:blur(18px);position:relative;border-color:#e7eee8}
+.header-inner{max-width:1330px;width:calc(100% - 60px);gap:22px}
+.brand{gap:10px}.brand img{width:43px;height:43px;object-fit:contain}.brand strong{letter-spacing:-.02em;font-size:18px;font-weight:750}.brand small{letter-spacing:.04em;text-transform:uppercase;font-weight:550;font-size:9px}
+.main-nav{gap:clamp(12px,2.3vw,27px)}.main-nav a{color:#496052;font-weight:600;font-size:12.5px}.main-nav a:hover,.main-nav a:focus-visible{color:var(--emerald)}
+.nav-book{border-radius:999px;padding:12px 19px;background:#17654c;font-weight:660}
+.button{border-radius:999px;padding:12px 21px;font-size:13px;font-weight:650;min-height:43px}
+.button.primary{background:#15654d}.button.primary:hover{background:#0f4c3b}.button.secondary{background:#fff;border-color:#cbdacf;color:#214836}
+.button:hover{transform:translateY(-1px)}
+.eyebrow{text-transform:uppercase;letter-spacing:.12em;color:#27815c;font-size:11px;font-weight:750;margin:0 0 16px}
+.text-link{color:var(--emerald);text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap}
+.text-link:hover{text-decoration:underline}
+/* Orbital gallery: panel positions travel around an arc; content has NO rotation */
+.landing{height:100dvh;overflow:hidden;background:#f6f9f5}
+.home-canvas{height:calc(100dvh - 72px);position:relative;overflow:hidden;isolation:isolate}
+.ambient-circle{position:absolute;pointer-events:none;border:1px solid #cde4d185;border-radius:50%;z-index:-1}
+.ambient-a{width:115vw;height:100vw;max-height:1200px;right:-55vw;top:-46vw;background:radial-gradient(circle at center,#e8f6ec9b,transparent 67%)}
+.ambient-b{width:870px;height:620px;left:-470px;bottom:-460px;border-width:42px;border-color:#dbeee1a1}
+.ring-shell{height:100%;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto auto;gap:0;position:relative;z-index:1}
+.ring-track{min-height:0;position:relative;width:100%;overflow:hidden;cursor:grab;touch-action:none;user-select:none;outline-offset:-5px;perspective:1800px}
+.ring-shell.dragging .ring-track{cursor:grabbing}
+.ring-slide{position:absolute;inset:0;margin:auto;width:min(1210px,calc(100% - 90px));height:calc(100% - 24px);max-height:710px;display:grid;grid-template-columns:47% 53%;overflow:hidden;border-radius:26px;border:1px solid #e3ece4;background:linear-gradient(118deg,#fff 0%,#fff 49%,#f9fcf9 100%);box-shadow:0 16px 52px #1e42230d;will-change:transform,opacity;contain:layout paint;pointer-events:none}
+.ring-slide.active{pointer-events:auto}
+.ring-copy{align-self:center;position:relative;z-index:4;padding:clamp(24px,4.1vw,64px) 5px clamp(24px,4vw,62px) clamp(28px,5.3vw,74px);min-width:0}
+.ring-copy h1,.ring-copy h2{font-family:Inter,'Segoe UI',-apple-system,Arial,sans-serif;font-size:clamp(33px,3.7vw,50px);line-height:1.15;letter-spacing:-.034em;font-weight:720;max-width:16ch;margin:0 0 17px}
+.ring-desc{font-size:clamp(13px,1.22vw,15.5px);line-height:1.65;max-width:47ch;color:#52665a;margin:0 0 23px}
+.micro-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:27px}
+.micro-tags span{font-size:11px;color:#557363;background:#eef5ef;border:1px solid #e5eee5;border-radius:999px;padding:6px 12px;font-weight:570}
+.ring-actions{display:flex;gap:10px;flex-wrap:wrap}
+.visual-well{position:relative;min-width:0;height:100%;display:flex;align-items:end;justify-content:center;isolation:isolate;overflow:hidden}
+.visual-orb{position:absolute;z-index:-1;border-radius:50%;pointer-events:none}
+.orb-one{width:min(91%,630px);aspect-ratio:1;right:0;top:50%;transform:translateY(-50%);background:radial-gradient(circle at 40% 42%,#e5f3e7 0%,#ecf6ed 51%,#f6faf5 77%);border:1px solid #e1f0e4}
+.orb-two{width:min(53%,320px);aspect-ratio:1;right:-13%;bottom:-20%;border:30px solid #c8e6d248}
+.hero-person{position:relative;z-index:2;object-fit:contain;object-position:center bottom;max-height:96%;max-width:100%;width:96%;height:96%;filter:drop-shadow(0 20px 22px #20453218);pointer-events:none;-webkit-user-drag:none}
+.float-detail{position:absolute;z-index:3;object-fit:contain;object-position:center bottom;max-height:43%;max-width:35%;width:35%;height:43%;bottom:0;left:0;filter:drop-shadow(0 11px 13px #20391c23);pointer-events:none;-webkit-user-drag:none}
+/* Group visuals varying naturally */
+.scene-portrait-woman-celebrate .hero-person,.scene-portrait-student-grade .hero-person,.scene-portrait-learn_student .hero-person{max-height:100%;height:100%}
+.scene-portrait-ideas-tablet .hero-person,.scene-portrait-research-coaches .hero-person{height:88%;max-height:88%}
+.scene-portrait-students-three .hero-person,.scene-portrait-confidence-couple .hero-person{width:100%;height:86%}
+.scene-portrait-present-professional .hero-person{height:96%}
+/* Small unobtrusive controls; no numerical page labels */
+.ring-controls{display:flex;justify-content:space-between;gap:12px;align-items:center;width:min(1180px,calc(100% - 90px));margin:auto;padding:0 12px 2px;min-height:51px}
+.ring-control-copy{display:flex;align-items:center;gap:11px;color:#4c6a58;font-size:12px;font-weight:640}
+.tiny-orbit-mark{height:10px;width:10px;border:2px solid #69ac84;border-radius:50%;display:block}
+.ring-control-actions{display:flex;align-items:center;gap:13px}
+.ring-control{height:37px;width:37px;display:grid;place-items:center;border:1px solid #d0e2d5;border-radius:50%;background:#fff;color:#14573e;transition:background .15s,border .15s}
+.ring-control:hover{background:#eaf4ec;border-color:#7ab797}.ring-control svg{width:17px;height:17px}
+.gesture-hint{color:#88978c;font-size:11px;letter-spacing:.005em}
+.ring-pips{display:flex;justify-content:center;gap:8px;align-items:center;min-height:22px;margin:0 0 5px}
+.ring-pip{width:7px;height:7px;border-radius:100px;padding:0;background:#c6dccc;border:0;transition:width .18s,background .18s}
+.ring-pip[aria-current="true"]{width:24px;background:#236c50}
+.home-contact-stub{display:none}
+/* Interior pages: premium restrained composition, readable typography */
+.standard-page{background:#fbfcfa}
+.standard-page .inner-main{background:#fbfcfa;min-height:55vh}
+.standard-page .page-top h1{font-size:clamp(31px,3.4vw,47px);line-height:1.15;letter-spacing:-.03em;max-width:18ch}
+.standard-page .page-top{background:linear-gradient(155deg,#f7fbf8,#fff)}
+.standard-page h2:not(.ring-copy h2){font-size:clamp(23px,2.35vw,33px);line-height:1.2;letter-spacing:-.025em}
+.standard-page .service-copy h2{font-size:clamp(26px,2.7vw,36px)}
+.standard-page .page-top p,.standard-page .service-copy p{font-size:15px;line-height:1.75}
+.standard-page .form label{font-size:13px}.standard-page .form input,.standard-page .form select,.standard-page .form textarea{border-radius:13px;font-size:14px;background:white}
+.standard-page .booking-choice,.standard-page .policy-inline,.standard-page .booking-form-col,.standard-page .contact-card,.standard-page .contact-form-box{border-radius:20px;box-shadow:0 7px 26px #1943290b}
+.footer{background:#f2f7f2;border-top-color:#e0ebe2}.footer-inner{max-width:1200px}
+/* Service and guide rotating showcase */
+.service-main{min-height:74vh;padding:40px max(24px,calc((100vw - 1290px)/2)) 70px;overflow:hidden}
+.interior-intro{display:flex;align-items:end;justify-content:space-between;gap:28px;padding:11px 4px 24px;max-width:1140px;margin:auto}
+.interior-intro h1{font-size:clamp(32px,3.6vw,49px);max-width:680px;margin-bottom:12px;line-height:1.14;letter-spacing:-.033em}
+.interior-intro h1 em{font-style:normal;color:#237558}
+.interior-intro p:not(.eyebrow){max-width:750px;font-size:15px;line-height:1.7;margin:0}
+.service-main .ring-shell{height:min(670px,78vh);min-height:520px;max-width:1330px;margin:0 auto;background:radial-gradient(circle at 66% 44%,#eaf5ec93,transparent 51%)}
+.service-main .ring-slide{width:min(1130px,calc(100% - 65px));height:calc(100% - 30px)}
+.service-main .ring-copy h2{font-size:clamp(31px,3.2vw,46px)}
+.service-main .visual-well .hero-person{max-height:82%;height:82%;width:82%}
+.service-main .float-detail{max-height:40%;height:40%;width:29%}
+.analysis-clarity{background:#eaf4ec;border:1px solid #daebde;border-radius:24px;display:grid;grid-template-columns:1.15fr .85fr;align-items:center;min-height:300px;max-width:1170px;margin:35px auto 0;padding:33px 45px 30px 55px;gap:30px;overflow:hidden}
+.analysis-clarity h2{font-size:31px;margin-bottom:13px}.analysis-clarity p{max-width:570px;font-size:14px;line-height:1.75}
+.analysis-clarity img{width:100%;height:270px;object-fit:contain}
+.small-legal-note{max-width:1140px;margin:24px auto 0;color:#64776a;font-size:12px;line-height:1.7}
+/* About */
+.about-main{max-width:1230px;margin:0 auto;padding:40px 28px 75px}
+.about-hero{background:linear-gradient(127deg,#f6faf6,#fff);border:1px solid #e4ece5;border-radius:25px;display:grid;grid-template-columns:1.13fr .87fr;overflow:hidden;min-height:460px;align-items:center}
+.about-copy{padding:55px 30px 55px 65px;position:relative;z-index:1}
+.about-copy h1{font-size:clamp(33px,3.6vw,48px);line-height:1.15;max-width:16ch;margin-bottom:18px}
+.about-copy p:not(.eyebrow){font-size:15px;line-height:1.75;max-width:540px}
+.about-person{height:440px;display:flex;align-items:end;justify-content:center;position:relative;overflow:hidden;isolation:isolate}
+.about-person .visual-orb{height:415px;width:415px;background:#e8f5ed;top:40px;left:50%;transform:translateX(-50%)}
+.about-person img{height:95%;max-width:100%;position:relative;object-fit:contain;object-position:bottom;filter:drop-shadow(0 18px 20px #29433224)}
+.founder-word{display:grid;grid-template-columns:.7fr 1.3fr;gap:55px;padding:75px 45px 55px;border-bottom:1px solid #e5eee7}
+.founder-word .eyebrow{margin-top:12px}
+.founder-word h2{font-size:33px;margin-bottom:5px}.founder-role{color:#237354;font-size:13px;font-weight:680;margin-bottom:25px}
+.founder-word p:not(.founder-role):not(.eyebrow){line-height:1.82;font-size:15px}
+.about-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px;padding:47px 0}
+.about-values article{border:1px solid #e3eee4;border-radius:20px;padding:28px;background:white}
+.about-values h3{font-size:17px;margin-bottom:9px}.about-values p{font-size:13px;line-height:1.7;margin:0}
+.value-glyph{display:grid;place-items:center;height:39px;width:39px;border-radius:50%;background:#e9f4ed;color:#357757;font-size:22px;margin-bottom:17px}
+.about-close{border-radius:22px;padding:35px 47px;background:#eef6ef;display:flex;align-items:center;justify-content:space-between;gap:30px}
+.about-close h2{font-size:30px;margin-bottom:9px}.about-close p{max-width:610px;font-size:14px;margin:0}
+/* Accessible gallery; every visual links to a specific service */
+.gallery-main{max-width:1300px;margin:0 auto;padding:40px 25px 80px}
+.gallery-intro{max-width:none;padding:6px 5px 26px;justify-content:flex-start}
+.gallery-intro h1{font-size:clamp(31px,3.5vw,48px);max-width:670px}.gallery-intro h1 em{font-style:normal;color:#287456}
+.gallery-filters{display:flex;gap:9px;flex-wrap:wrap;margin:2px 0 27px}
+.gallery-filters button{background:white;border:1px solid #d9e8dd;color:#466450;border-radius:999px;padding:9px 17px;font-weight:660;font-size:12px}
+.gallery-filters button.filter-active{background:#175d44;color:white;border-color:#175d44}
+.gallery-mosaic{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.gallery-tile{border:1px solid #e1eae2;border-radius:19px;background:#fff;overflow:hidden;display:flex;flex-direction:column;min-width:0;box-shadow:0 6px 24px #15362209;transition:box-shadow .2s,transform .2s}
+.gallery-tile:hover{transform:translateY(-3px);box-shadow:0 14px 30px #173b2315}.gallery-tile[hidden]{display:none}
+.gallery-art{height:225px;width:100%;background:radial-gradient(circle at 52% 46%,#e8f4eb,#f8fbf8 71%);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.gallery-art img{width:96%;height:99%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 12px 12px #1b422021);transition:transform .25s}
+.gallery-tile:hover .gallery-art img{transform:scale(1.035)}
+.gallery-text{display:flex;flex-direction:column;gap:6px;padding:16px 17px 17px}.gallery-text strong{font-size:14px;line-height:1.4;font-weight:720;color:#234332}.gallery-text>span{color:#247556;font-size:11px;font-weight:640}
+/* Mobile */
+@media(max-width:1130px){.main-nav{gap:13px}.main-nav a{font-size:12px}.brand strong{font-size:16px}.header-inner{width:calc(100% - 34px)}.ring-slide{width:calc(100% - 54px)}.ring-copy{padding-left:33px}.ring-copy h1,.ring-copy h2{font-size:clamp(30px,3.8vw,44px)}.gallery-mosaic{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:860px){.main-nav{display:none}.menu-button{display:grid}.ring-slide{width:calc(100% - 26px)}.ring-controls{width:calc(100% - 24px)}.ring-copy{padding:24px 5px 24px 28px}.ring-copy h1,.ring-copy h2{font-size:34px}.ring-desc{font-size:13px}.micro-tags{margin-bottom:20px}.service-main .ring-slide{width:calc(100% - 26px)}.about-copy{padding:30px}.about-hero{min-height:400px}.about-person{height:400px}.founder-word{gap:20px;padding:55px 20px}.gallery-mosaic{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){
+ .header{height:64px}.header-inner{width:calc(100% - 26px)}.brand img{width:39px;height:39px}.brand strong{font-size:16px}.brand small{font-size:8px}.nav-book{padding:10px 14px;font-size:12px}.menu-button{width:38px}
+ .home-canvas{height:calc(100dvh - 64px)}.ring-shell{grid-template-rows:minmax(0,1fr) 42px 22px}
+ .ring-slide{height:calc(100% - 8px);width:calc(100% - 18px);grid-template-columns:1fr;grid-template-rows:minmax(198px,auto) minmax(0,1fr);border-radius:20px}
+ .ring-copy{padding:19px 19px 0;align-self:start;max-width:100%}
+ .ring-copy .eyebrow{font-size:9.5px;margin-bottom:9px;letter-spacing:.09em}
+ .ring-copy h1,.ring-copy h2{font-size:clamp(25px,6.5vw,34px);line-height:1.13;margin:0 0 8px;max-width:none;letter-spacing:-.027em}
+ .ring-desc{font-size:12px;line-height:1.5;margin-bottom:9px;max-width:62ch}
+ .micro-tags{gap:5px;margin-bottom:11px}.micro-tags span{padding:5px 8px;font-size:9px}
+ .ring-actions{gap:7px}.ring-actions .button{font-size:10.5px;min-height:35px;padding:9px 12px}
+ .visual-well{min-height:0;max-height:100%;align-self:stretch}
+ .hero-person{width:93%;height:100%;max-height:100%;max-width:100%;object-position:bottom center}
+ .float-detail{width:31%;height:41%;bottom:0;left:0}
+ .orb-one{height:min(70vw,270px);width:min(70vw,270px);right:12%;top:54%}
+ .ring-controls{min-height:40px;width:calc(100% - 22px);padding:0 5px}.ring-current-title{font-size:11px}.ring-control{width:33px;height:33px}.ring-control-actions{gap:10px}.gesture-hint{display:none}.ring-pips{gap:7px;margin:0 0 3px;min-height:19px}.ring-pip{width:6px;height:6px}.ring-pip[aria-current="true"]{width:19px}
+ .service-main{padding:24px 6px 50px}.interior-intro{padding:7px 16px 17px;align-items:start;display:block}.interior-intro h1{font-size:31px}.interior-intro p:not(.eyebrow){font-size:13px;line-height:1.62}.interior-intro .text-link{display:inline-block;margin-top:12px}
+ .service-main .ring-shell{min-height:520px;height:min(640px,calc(100dvh - 90px))}.service-main .ring-copy h2{font-size:clamp(24px,6.3vw,31px)}.service-main .ring-slide{width:calc(100% - 16px)}.service-main .visual-well .hero-person{height:87%;max-height:87%;width:83%}.service-main .float-detail{height:38%;max-height:38%}
+ .analysis-clarity{display:block;padding:26px 22px;min-height:unset;margin:25px 11px 0}.analysis-clarity h2{font-size:24px}.analysis-clarity img{height:185px;margin-top:15px}.small-legal-note{padding:0 13px}
+ .about-main{padding:23px 15px 50px}.about-hero{grid-template-columns:1fr;gap:0;border-radius:20px}.about-copy{padding:26px 22px 0}.about-copy h1{font-size:31px}.about-copy p:not(.eyebrow){font-size:13px}.about-person{height:260px}.about-person .visual-orb{width:260px;height:260px;top:5px}.about-person img{height:99%}.founder-word{display:block;padding:33px 10px}.founder-word h2{font-size:26px}.founder-word p:not(.founder-role):not(.eyebrow){font-size:13px}.about-values{grid-template-columns:1fr;gap:12px;padding:25px 0}.about-values article{padding:22px}.about-close{display:block;padding:25px}.about-close h2{font-size:24px}.about-close .button{margin-top:18px}
+ .gallery-main{padding:26px 14px 50px}.gallery-intro{padding:4px 4px 24px}.gallery-mosaic{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.gallery-art{height:163px}.gallery-tile{border-radius:15px}.gallery-text{padding:12px;gap:4px}.gallery-text strong{font-size:12px}.gallery-text>span{font-size:10px}
+ .standard-page .page-top{padding:31px 20px 21px}.standard-page .page-top h1{font-size:31px}.standard-page .booking-wrap,.standard-page .contact-wrap{padding:18px 16px 40px}
+}
+@media(max-width:390px){.brand small{display:none}.nav-book{padding:9px 10px;font-size:10px}.ring-copy{padding:15px 14px 0}.ring-copy h1,.ring-copy h2{font-size:24px}.ring-desc{font-size:11.5px;line-height:1.43}.micro-tags span{font-size:8px;padding:4px 6px}.micro-tags{margin-bottom:8px}.ring-actions .button{font-size:10px;padding:8px 10px;min-height:32px}.float-detail{display:none}.ring-slide{grid-template-rows:minmax(190px,auto) minmax(0,1fr)}}
+@media(max-height:680px) and (max-width:700px){.ring-copy{padding-top:12px}.ring-copy .eyebrow{margin-bottom:5px}.ring-copy h1,.ring-copy h2{font-size:23px;margin-bottom:5px}.ring-desc{font-size:11px;line-height:1.38;margin-bottom:8px}.micro-tags{margin-bottom:7px}.ring-slide{grid-template-rows:minmax(175px,auto) minmax(0,1fr)}.ring-actions .button{min-height:31px;padding:7px 10px}.ring-shell{grid-template-rows:minmax(0,1fr) 37px 18px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+/* Fine fit for portrait-height phones: make supplied visual assets prominent, not tiny at the bottom. */
+@media(max-width:700px){
+ .landing .visual-well .hero-person{width:126%;max-width:none;height:111%;max-height:111%;object-position:center bottom}
+ .landing .visual-well .orb-one{top:43%}
+ .service-main .ring-shell{min-height:510px;height:min(565px,calc(100dvh - 290px))}
+ .service-main .visual-well .hero-person{width:96%;height:94%;max-height:94%}
+}

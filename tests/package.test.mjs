@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {clean,safeEmail,safePhone,createPassword,derivePassword,eqSafe,hash,makeReference,checkOrigin} from '../lib/security.js';
+import {legacyPage} from '../lib/pages.js';
+import fs from 'node:fs';import path from 'node:path';
+test('valid international/local phone and reject invalid',()=>{assert.equal(safePhone('0786 609 975'),'255786609975');assert.equal(safePhone('0769 394 541'),'255769394541');assert.equal(safePhone('abc'),null)});
+test('email validation and trimming',()=>{assert.equal(safeEmail('TEST@example.com '),'test@example.com');assert.equal(safeEmail('hello'),null)});
+test('hashed passwords have unique salts and verify',async()=>{let a=await createPassword('A longer secret! 2026'),b=await createPassword('A longer secret! 2026');assert.notEqual(a.salt,b.salt);assert.notEqual(a.digest,b.digest);assert(eqSafe(a.digest,await derivePassword('A longer secret! 2026',a.salt)));assert(!eqSafe(a.digest,await derivePassword('bad',a.salt)))});
+test('reference is random and does not expose booking volume',()=>{const a=makeReference(),b=makeReference();assert.match(a,/^WILS-\d{4}-[A-F0-9]{12}$/);assert.notEqual(a,b)});
+test('origin check blocks foreign cross-origin POST',()=>{assert.equal(checkOrigin({headers:new Headers({origin:'https://evil.example',host:'wils.example'})}),false);assert.equal(checkOrigin({headers:new Headers({origin:'https://wils.example',host:'wils.example'})}),true)});
+test('private admin route 404 without configured segment',async()=>{const r=await legacyPage(['admin']);assert.equal(r.status,404);});
+test('admin URL only works with configured private segment',async()=>{process.env.ADMIN_PATH_SEGMENT='private-office-abc';const r=await legacyPage(['office','private-office-abc']);assert.equal(r.status,200);const html=await r.text();assert(html.includes('adminLoginForm'));assert.equal((await legacyPage(['office','wrong'])).status,404);delete process.env.ADMIN_PATH_SEGMENT});
+test('original gallery and services persist',()=>{const root=process.cwd();for(const slug of ['index.html','gallery/index.html','about/index.html','services/index.html','book/index.html'])assert(fs.existsSync(path.join(root,'public',slug)),slug)});
+test('every WILS asset referenced by HTML exists',()=>{const root=path.resolve('public');function walk(d){return fs.readdirSync(d,{withFileTypes:true}).flatMap(x=>x.isDirectory()?walk(path.join(d,x.name)):x.name.endsWith('.html')?[path.join(d,x.name)]:[])};for(const f of walk(root)){const str=fs.readFileSync(f,'utf8');for(const m of str.matchAll(/(?:src|href)="(\/assets\/[^"#?]+)"/g)){assert(fs.existsSync(path.join(root,m[1])),`Missing ${m[1]} in ${f}`)}}});

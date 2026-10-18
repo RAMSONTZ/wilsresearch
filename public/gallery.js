@@ -1,0 +1,1 @@
+(()=>{const buttons=[...document.querySelectorAll('[data-filter]')],tiles=[...document.querySelectorAll('.gallery-tile')];for(const b of buttons)b.addEventListener('click',()=>{buttons.forEach(x=>x.classList.toggle('filter-active',x===b));const v=b.dataset.filter;tiles.forEach(t=>{t.hidden=v!=='all'&&t.dataset.kind!==v;});});})();
